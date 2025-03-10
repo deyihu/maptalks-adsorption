@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map - Display a map</title>
+<style type="text/css">
+    html,
+    body {
+        margin: 0px;
+        height: 100%;
+        width: 100%
+    }
+
+    .container {
+        width: 100%;
+        height: 100%
+    }
+
+    .message {
+        background-color: black;
+        color: white;
+    }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/maptalks/dist/maptalks.css">
+<script type="text/javascript" src="https://unpkg.com/maptalks-gl/dist/maptalks-gl.js"></script>
+<script src="https://unpkg.com/maptalks.snap/dist/maptalks.snap.js"></script>
+<script type="text/javascript" src="https://unpkg.com/gcoord@0.3.2/dist/gcoord.js"></script>
+
+<body>
+    <div class="message">
+        polygon,linestring snap collision data from vt
+    </div>
+    <div id="map" class="container"></div>
+    <script src="./base.js"></script>
+    <script>
+
+        const style = {
+            style: [{
+                name: 'area-fill',
+                filter: true,
+                renderPlugin: {
+                    dataConfig: {
+                        type: "fill"
+                    },
+                    sceneConfig: {},
+                    type: "fill"
+                },
+                symbol: {
+                    polygonFill: "green",
+                    polygonOpacity: 0.7
+                }
+            },
+            {
+                name: 'area-border',
+                filter: true,
+                renderPlugin: {
+                    dataConfig: {
+                        type: "line"
+                    },
+                    sceneConfig: {},
+                    type: "line"
+                },
+                symbol: {
+                    lineColor: "#000",
+                    lineOpacity: 1,
+                    lineWidth: 2
+                }
+            }
+            ]
+        };
+
+        const geoLayer = new maptalks.GeoJSONVectorTileLayer("geo", {
+            style,
+            features: true,
+            pickingGeometry: true,
+            data: './data3.geojson'
+        });
+
+
+        const groupGLLayer = new maptalks.GroupGLLayer("gl", [geoLayer], {
+
+        }).addTo(map);
+        groupGLLayer.setZIndex(-1);
+
+        const debugLayer = new maptalks.VectorLayer('debug1').addTo(map);
+
+        function getVTGeos() {
+            const items = geoLayer.getRenderedFeatures();
+            const fs = [];
+            items.forEach(item => {
+                const features = item.features || [];
+                features.forEach(f => {
+                    if (f.feature) {
+                        fs.push(Object.assign({}, f.feature, {
+                            type: 'Feature',
+                            id: null
+                        }));
+                    }
+                });
+            });
+            return fs.map(f => {
+                return maptalks.GeoJSON.toGeometry(f)
+            })
+        }
+
+        let editGeo;
+        fetch('./data.geojson').then(res => res.json()).then(geojson => {
+            const geos = maptalks.GeoJSON.toGeometry(geojson, function (geo) {
+                if (geo instanceof maptalks.Marker || geo instanceof maptalks.MultiPoint) {
+                    geo.setSymbol(markerSymbol);
+                }
+                if (geo instanceof maptalks.LineString || geo instanceof maptalks.MultiLineString) {
+                    geo.setSymbol(lineSymbol);
+                }
+                if (geo instanceof maptalks.Polygon || geo instanceof maptalks.MultiPolygon) {
+                    geo.setSymbol(fillSymbol);
+                }
+            });
+            // layer.addGeometry(geos);
+            editGeo = geos.filter(geo => {
+                return geo.getProperties().name.includes('编辑');
+            })[0];
+            layer.addGeometry(editGeo);
+            editGeo.startEdit({
+                vertexHandleSymbol: Object.assign({}, markerSymbol, { markerLineColor: '#1791FC' }),
+                newVertexHandleSymbol: Object.assign({}, markerSymbol, { markerFill: '#1791FC', markerLineColor: "#fff" })
+            });
+            snap.effectGeometry(editGeo);
+            // const lineString = geos.filter(geo => {
+            //     return geo.getType() === 'LineString';
+            // })[0];
+            // if (lineString) {
+            //     lineString.startEdit({
+            //         vertexHandleSymbol: Object.assign({}, markerSymbol, { markerLineColor: '#1791FC' }),
+            //         newVertexHandleSymbol: Object.assign({}, markerSymbol, { markerFill: '#1791FC', markerLineColor: "#fff" })
+            //     });
+            //     snap.effectGeometry(lineString);
+            // }
+            snap.config({
+                filterGeometries: () => {
+
+                    const result = getVTGeos();
+                    // console.log(result);
+                    // debugLayer.clear();
+                    // debugLayer.addGeometry(result);
+                    return result;
+                }
+            })
+            snap.on('snap', (e) => {
+                console.log(e);
+            })
+        });
+    </script>
+</body>
+
+</html>
